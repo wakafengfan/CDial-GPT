@@ -6,3 +6,4 @@ models/
 runs/
 temp/
 result/
+.bin

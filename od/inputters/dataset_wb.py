@@ -46,7 +46,7 @@ class WBDataset(Dataset):
                                               for _ in s]
         instance["lm_labels"] = [-1] * len(instance["input_ids"])
         if self.lm_labels:
-            instance["lm_labels"] = ([-1] * sum(len(s) for s in sequence[:-1])) + [-1] + sequence[-1][1:]
+            instance["lm_labels"] = ([-100] * sum(len(s) for s in sequence[:-1])) + [-100] + sequence[-1][1:]
 
         return instance
 
@@ -59,7 +59,7 @@ class WBDataset(Dataset):
             batch_first=self.batch_first, padding_value=self.pad)
         labels = pad_sequence(
             [torch.tensor(instance["lm_labels"], dtype=torch.long) for instance in batch],
-            batch_first=self.batch_first, padding_value=-1)
+            batch_first=self.batch_first, padding_value=-100)
         return input_ids, token_type_ids, labels
 
 
@@ -133,9 +133,9 @@ class WBdistDataset(DatasetBase):
         instance["token_type_ids"] = [bos] + [speaker2 if i % 2 else speaker1 for i, s in
                                               enumerate(sequence[1:])
                                               for _ in s]
-        instance["lm_labels"] = [-1] * len(instance["input_ids"])
+        instance["lm_labels"] = [-100] * len(instance["input_ids"])
         if self.lm_labels:
-            instance["lm_labels"] = ([-1] * sum(len(s) for s in sequence[:-1])) + [-1] + sequence[-1][1:]
+            instance["lm_labels"] = ([-100] * sum(len(s) for s in sequence[:-1])) + [-100] + sequence[-1][1:]
 
         return instance
 
@@ -148,7 +148,7 @@ class WBdistDataset(DatasetBase):
             batch_first=self.batch_first, padding_value=self.pad)
         labels = pad_sequence(
             [torch.tensor(instance["lm_labels"], dtype=torch.long) for instance in batch],
-            batch_first=self.batch_first, padding_value=-1)
+            batch_first=self.batch_first, padding_value=-100)
         return input_ids, token_type_ids, labels
 
 

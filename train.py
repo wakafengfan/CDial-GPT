@@ -13,7 +13,7 @@ from torch.nn.parallel import DistributedDataParallel
 from torch.optim.lr_scheduler import LambdaLR
 
 from ignite.engine import Engine, Events
-from ignite.handlers import ModelCheckpoint
+from ignite.handlers import ModelCheckpoint, global_step_from_engine
 from ignite.metrics import Loss, MetricsLambda, RunningAverage
 from ignite.contrib.handlers import ProgressBar, PiecewiseLinear, LRScheduler
 from ignite.contrib.handlers.tensorboard_logger import TensorboardLogger, OutputHandler, OptimizerParamsHandler
@@ -47,10 +47,10 @@ def average_distributed_scalar(scalar, args):
 
 def train():
     parser = ArgumentParser()
-    parser.add_argument('--gpt2', action='store_true', help="use gpt2")
+    parser.add_argument('--gpt2', type=bool, default=False, help="use gpt2")
     parser.add_argument("--model_checkpoint", type=str, default="config/cgpt/", help="Path or URL of the model")
     parser.add_argument("--from_step", type=int, default=-1, help="Init learning rate from this step")
-    parser.add_argument('--pretrained', action='store_true', help="If False train from scratch")
+    parser.add_argument('--pretrained', type=bool, default=True, help="If False train from scratch")
     parser.add_argument("--data_path", type=str, default="",
                         help="Path or url of the dataset. ")
     parser.add_argument("--train_path", type=str, default="data/toy_train.txt",
@@ -60,7 +60,7 @@ def train():
     parser.add_argument("--dataset_cache", type=str, default="dataset_cache",
                         help="Path or url of the dataset cache")
     parser.add_argument('--log_file', '-log_file', type=str, default="", help="Output logs to a file under this path")
-    parser.add_argument("--num_workers", type=int, default=8, help="Number of subprocesses for data loading")
+    parser.add_argument("--num_workers", type=int, default=0, help="Number of subprocesses for data loading")
     parser.add_argument("--n_epochs", type=int, default=70, help="Number of training epochs")
     parser.add_argument("--train_batch_size", type=int, default=2, help="Batch size for training")
     parser.add_argument("--valid_batch_size", type=int, default=2, help="Batch size for validation")
@@ -101,10 +101,10 @@ def train():
     config_class = OpenAIGPTConfig if not args.gpt2 else GPT2Config
     tokenizer_class = BertTokenizer
     if args.pretrained:
-        tokenizer = tokenizer_class.from_pretrained(args.model_checkpoint, do_lower_case=True, never_split=["[speaker1]", "[speaker2]"])
+        tokenizer = tokenizer_class.from_pretrained(args.model_checkpoint, do_lower_case=True)
         model = model_class.from_pretrained(args.model_checkpoint)
     else:
-        tokenizer = tokenizer_class(os.path.join(args.model_checkpoint, "vocab.txt"), do_lower_case=True, never_split=["[speaker1]", "[speaker2]"])
+        tokenizer = tokenizer_class(os.path.join(args.model_checkpoint, "vocab.txt"), do_lower_case=True)
         config = config_class.from_json_file(os.path.join(args.model_checkpoint, CONFIG_NAME))
         model = model_class(config)
     model.to(args.device)
@@ -207,19 +207,19 @@ def train():
                          event_name=Events.ITERATION_COMPLETED)
         tb_logger.attach(trainer, log_handler=OptimizerParamsHandler(optimizer), event_name=Events.ITERATION_STARTED)
         tb_logger.attach(evaluator, log_handler=OutputHandler(tag="validation", metric_names=list(metrics.keys()),
-                                                              another_engine=trainer),
+                                                              global_step_transform=global_step_from_engine(trainer)),
                          event_name=Events.EPOCH_COMPLETED)
 
-        checkpoint_handler = ModelCheckpoint(tb_logger.writer.logdir, 'checkpoint', save_interval=1, n_saved=3)
+        checkpoint_handler = ModelCheckpoint(tb_logger.writer.log_dir, 'checkpoint', n_saved=3)
         # save model after evaluation
         evaluator.add_event_handler(Events.EPOCH_COMPLETED, checkpoint_handler, {
             'mymodel': getattr(model, 'module', model)})
         trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpoint_handler, {
             'mymodel': getattr(model, 'module', model)})  # "getattr" take care of distributed encapsulation
 
-        torch.save(args, tb_logger.writer.logdir + '/model_training_args.bin')
-        getattr(model, 'module', model).config.to_json_file(os.path.join(tb_logger.writer.logdir, CONFIG_NAME))
-        tokenizer.save_vocabulary(tb_logger.writer.logdir)
+        torch.save(args, tb_logger.writer.log_dir + '/model_training_args.bin')
+        getattr(model, 'module', model).config.to_json_file(os.path.join(tb_logger.writer.log_dir, CONFIG_NAME))
+        tokenizer.save_vocabulary(tb_logger.writer.log_dir)
 
     # Run the training
     trainer.run(train_loader, max_epochs=args.n_epochs)
