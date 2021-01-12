@@ -71,7 +71,7 @@ def train():
     parser.add_argument("--eval_before_start", action='store_true',
                         help="If true start with a first evaluation before training")
     parser.add_argument("--warmup_steps", type=int, default=5000, help="Warm up steps")
-    parser.add_argument("--valid_steps", type=int, default=5000, help="Perfom validation every X steps")
+    parser.add_argument("--valid_steps", type=int, default=5, help="Perfom validation every X steps")
     parser.add_argument("--gradient_accumulation_steps", type=int, default=64,
                         help="Accumulate gradients on several steps")
     parser.add_argument("--max_norm", type=float, default=1.0, help="Clipping gradient norm")
@@ -188,7 +188,7 @@ def train():
     # Prepare metrics - note how we compute distributed metrics
     RunningAverage(output_transform=lambda x: x[0]).attach(trainer, "loss")
     RunningAverage(output_transform=lambda x: x[1]).attach(trainer, "lr")
-    metrics = {"nll": Loss(torch.nn.CrossEntropyLoss(ignore_index=-1), output_transform=lambda x: (x[0], x[1]))}
+    metrics = {"nll": Loss(torch.nn.CrossEntropyLoss(ignore_index=-100), output_transform=lambda x: (x[0], x[1]))}
     metrics.update({"average_nll": MetricsLambda(average_distributed_scalar, metrics["nll"], args)})
     metrics["average_ppl"] = MetricsLambda(math.exp, metrics["average_nll"])
     for name, metric in metrics.items():

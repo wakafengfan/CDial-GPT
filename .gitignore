@@ -6,4 +6,4 @@ models/
 runs/
 temp/
 result/
-.bin
+pytorch_model.bin
